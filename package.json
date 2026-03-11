@@ -1,4 +1,5 @@
-"name": "simple-ai-qa-site",
+{
+  "name": "simple-ai-qa-site",
   "version": "1.0.0",
   "description": "Simple website that sends a question to an AI and shows the response",
   "main": "server.js",
@@ -21,5 +22,3 @@
     "openai": "^4.80.1"
   }
 }
-
-

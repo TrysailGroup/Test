@@ -1,4 +1,4 @@
-const OpenAI = require("openai");
+  const OpenAI = require("openai");
 
 /**
  * Vercel serverless function: handles POST /api/ask
@@ -90,27 +90,35 @@ module.exports = async (req, res) => {
       ]
     });
 
-    const firstOutput = Array.isArray(response.output)
-      ? response.output[0]
-      : null;
-
     let answer = "I could not generate an answer.";
+    if (Array.isArray(response.output)) {
+      // Some outputs may be tool calls; we want the first text message.
+      for (const item of response.output) {
+        if (!item || !Array.isArray(item.content)) continue;
 
-    if (firstOutput && Array.isArray(firstOutput.content)) {
-      const textPart =
-        firstOutput.content.find(
-          (c) =>
-            c &&
-            (c.type === "output_text" ||
-              c.type === "text" ||
-              (c.text && typeof c.text.value === "string"))
-        ) || firstOutput.content[0];
+        const textPart =
+          item.content.find(
+            (c) =>
+              c &&
+              (c.type === "output_text" ||
+                c.type === "text" ||
+                (c.text && typeof c.text.value === "string"))
+          ) || item.content[0];
 
-      if (textPart) {
+        if (!textPart) continue;
+
         if (textPart.text && typeof textPart.text.value === "string") {
-          answer = textPart.text.value.trim() || answer;
+          const v = textPart.text.value.trim();
+          if (v) {
+            answer = v;
+            break;
+          }
         } else if (typeof textPart.text === "string") {
-          answer = textPart.text.trim() || answer;
+          const v = textPart.text.trim();
+          if (v) {
+            answer = v;
+            break;
+          }
         }
       }
     }

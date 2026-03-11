@@ -69,13 +69,18 @@ module.exports = async (req, res) => {
       safeMessages[safeMessages.length - 1];
 
     const response = await client.responses.create({
-      model: "gpt-5-nano",
+      model: "gpt-4.1-mini",
       input:
-        "You are a helpful assistant. Use web search when you need " +
-        "up-to-date or factual information. Here is the current chat history " +
-        "and the latest user message:\n\n" +
+        "You are a helpful assistant.\n\n" +
+        "- You MUST use the web_search tool for anything involving:\n" +
+        "  - current events, news, releases, or elections\n" +
+        "  - software/library versions, documentation, or pricing\n" +
+        "  - anything that could have changed after 2025-10\n" +
+        "- If the user asks for 'latest', 'current', or a year after 2025,\n" +
+        "  ALWAYS call web_search before answering.\n\n" +
+        "Here is the current chat history and latest user message:\n\n" +
         JSON.stringify(safeMessages, null, 2) +
-        "\n\nAnswer the user clearly and concisely.\n\n" +
+        "\n\nAnswer the user clearly and concisely for the latest user message only.\n\n" +
         "Latest user message:\n" +
         lastUserMessage.content,
       tools: [
@@ -85,16 +90,30 @@ module.exports = async (req, res) => {
       ]
     });
 
-    const firstOutput = response.output && response.output[0];
-    const textContent =
-      firstOutput &&
-      firstOutput.content &&
-      firstOutput.content[0] &&
-      firstOutput.content[0].text;
+    const firstOutput = Array.isArray(response.output)
+      ? response.output[0]
+      : null;
 
-    const answer =
-      (typeof textContent === "string" && textContent.trim()) ||
-      "I could not generate an answer.";
+    let answer = "I could not generate an answer.";
+
+    if (firstOutput && Array.isArray(firstOutput.content)) {
+      const textPart =
+        firstOutput.content.find(
+          (c) =>
+            c &&
+            (c.type === "output_text" ||
+              c.type === "text" ||
+              (c.text && typeof c.text.value === "string"))
+        ) || firstOutput.content[0];
+
+      if (textPart) {
+        if (textPart.text && typeof textPart.text.value === "string") {
+          answer = textPart.text.value.trim() || answer;
+        } else if (typeof textPart.text === "string") {
+          answer = textPart.text.trim() || answer;
+        }
+      }
+    }
 
     res.status(200).json({ answer });
   } catch (err) {

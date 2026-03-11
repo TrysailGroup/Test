@@ -1,41 +1,52 @@
 const OpenAI = require("openai");
+
 /**
  * Vercel serverless function: handles POST /api/ask
  * This function runs on Vercel and keeps your API key on the server.
+ * It uses the Responses API with the web_search tool so the model
+ * can access up‑to‑date information from the internet when needed.
  */
 module.exports = async (req, res) => {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed" });
   }
+
   try {
     const apiKeyRaw = process.env.OPENAI_API_KEY || "";
     const apiKey = apiKeyRaw.trim();
+
     const body =
       typeof req.body === "string" ? JSON.parse(req.body) : req.body || {};
     const { question, messages } = body;
+
     const inputMessages = Array.isArray(messages)
       ? messages
       : typeof question === "string"
         ? [{ role: "user", content: question }]
         : null;
+
     if (!inputMessages) {
       return res.status(400).json({
         error: "Request must include `messages` (array) or `question` (string)."
       });
     }
+
     if (!apiKey) {
       return res
         .status(500)
         .json({ error: "OPENAI_API_KEY is not configured on the server." });
     }
+
     if (/\s/.test(apiKey)) {
       return res.status(500).json({
         error:
           "OPENAI_API_KEY looks invalid (it contains whitespace). Re-enter it in Vercel env vars with no spaces/new lines."
       });
     }
-    const openai = new OpenAI({ apiKey });
+
+    const client = new OpenAI({ apiKey });
+
     const safeMessages = inputMessages
       .filter(
         (m) =>
@@ -48,16 +59,43 @@ module.exports = async (req, res) => {
         role: m.role,
         content: m.content.slice(0, 8000)
       }));
+
     if (safeMessages.length === 0) {
       return res.status(400).json({ error: "No valid messages provided." });
     }
-    const completion = await openai.chat.completions.create({
-      model: "gpt-5-nano",
-      messages: safeMessages
+
+    const lastUserMessage =
+      [...safeMessages].reverse().find((m) => m.role === "user") ||
+      safeMessages[safeMessages.length - 1];
+
+    const response = await client.responses.create({
+      model: "gpt-4.1-mini",
+      input:
+        "You are a helpful assistant. Use web search when you need " +
+        "up-to-date or factual information. Here is the current chat history " +
+        "and the latest user message:\n\n" +
+        JSON.stringify(safeMessages, null, 2) +
+        "\n\nAnswer the user clearly and concisely.\n\n" +
+        "Latest user message:\n" +
+        lastUserMessage.content,
+      tools: [
+        {
+          type: "web_search"
+        }
+      ]
     });
+
+    const firstOutput = response.output && response.output[0];
+    const textContent =
+      firstOutput &&
+      firstOutput.content &&
+      firstOutput.content[0] &&
+      firstOutput.content[0].text;
+
     const answer =
-      completion.choices?.[0]?.message?.content?.trim() ||
+      (typeof textContent === "string" && textContent.trim()) ||
       "I could not generate an answer.";
+
     res.status(200).json({ answer });
   } catch (err) {
     console.error(err);

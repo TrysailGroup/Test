@@ -69,7 +69,7 @@ module.exports = async (req, res) => {
       safeMessages[safeMessages.length - 1];
 
     const response = await client.responses.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5-nano",
       input:
         "You are a helpful assistant.\n\n" +
         "- You MUST use the web_search tool for anything involving:\n" +

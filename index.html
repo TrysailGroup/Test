@@ -4,8 +4,6 @@
     <meta charset="UTF-8" />
     <title>Ask the AI</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <!-- This is the same UI as public/index.html, just moved to the project root
-         so Vercel can serve it as the default page. -->
     <style>
       :root {
         color-scheme: light dark;
@@ -332,47 +330,6 @@
         color: #4b5563;
       }
 
-      .thread {
-        overflow: auto;
-        max-height: 420px;
-        padding-right: 6px;
-      }
-
-      .msg {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 10px 11px;
-        border-radius: 16px;
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        background: rgba(2, 6, 23, 0.55);
-      }
-
-      .msg + .msg {
-        margin-top: 10px;
-      }
-
-      .msg.user {
-        border-color: rgba(59, 130, 246, 0.45);
-        background: rgba(30, 64, 175, 0.12);
-      }
-
-      .msg.assistant {
-        border-color: rgba(52, 211, 153, 0.35);
-        background: rgba(6, 95, 70, 0.12);
-      }
-
-      .msg-role {
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--text-soft);
-      }
-
-      .msg-content {
-        white-space: pre-wrap;
-      }
-
       .error-text {
         color: var(--danger);
         font-size: 13px;
@@ -391,7 +348,7 @@
           </div>
           <div class="title">
             Ask the AI
-            <span class="badge">Vercel demo</span>
+            <span class="badge">Local demo</span>
           </div>
           <div style="width: 52px"></div>
         </div>
@@ -413,14 +370,11 @@
             ></textarea>
             <div class="controls">
               <div class="hint">
-                Your API key stays on the server. The browser never sees it.
+                Your API key stays on your machine. No key in the browser.
               </div>
               <div class="button-row">
                 <button type="button" class="btn-secondary" id="clearBtn">
-                  Clear input
-                </button>
-                <button type="button" class="btn-secondary" id="newThreadBtn">
-                  New thread
+                  Clear
                 </button>
                 <button type="button" class="btn-primary" id="askBtn">
                   <span id="askBtnText">Ask the AI</span>
@@ -434,13 +388,13 @@
             <div class="panel-label">AI response</div>
             <div class="response-shell">
               <div class="response-header">
-                <div class="response-title">Thread</div>
+                <div class="response-title">Answer</div>
                 <div id="statusPill" class="status-pill pending" style="display: none">
                   Thinking…
                 </div>
               </div>
-              <div id="thread" class="thread response-body placeholder">
-                Start by asking a question on the left.
+              <div id="answer" class="response-body placeholder">
+                The AI’s response will appear here.
               </div>
             </div>
           </div>
@@ -454,14 +408,10 @@
       const askBtnText = document.getElementById("askBtnText");
       const askBtnSpinner = document.getElementById("askBtnSpinner");
       const clearBtn = document.getElementById("clearBtn");
-      const newThreadBtn = document.getElementById("newThreadBtn");
-      const threadEl = document.getElementById("thread");
+      const answerEl = document.getElementById("answer");
       const statusPill = document.getElementById("statusPill");
       const errorEl = document.getElementById("error");
       const charCount = document.getElementById("charCount");
-
-      /** @type {{role: "user" | "assistant", content: string}[]} */
-      let messages = [];
 
       questionInput.addEventListener("input", () => {
         charCount.textContent = questionInput.value.length + " / 500";
@@ -472,44 +422,6 @@
         charCount.textContent = "0 / 500";
         questionInput.focus();
       });
-
-      newThreadBtn.addEventListener("click", () => {
-        messages = [];
-        renderThread();
-        questionInput.focus();
-      });
-
-      function escapeHtml(s) {
-        return s
-          .replaceAll("&", "&amp;")
-          .replaceAll("<", "&lt;")
-          .replaceAll(">", "&gt;")
-          .replaceAll('"', "&quot;")
-          .replaceAll("'", "&#039;");
-      }
-
-      function renderThread() {
-        if (messages.length === 0) {
-          threadEl.classList.add("placeholder");
-          threadEl.innerHTML = "Start by asking a question on the left.";
-          return;
-        }
-
-        threadEl.classList.remove("placeholder");
-        threadEl.innerHTML = messages
-          .map((m) => {
-            const roleLabel = m.role === "user" ? "You" : "AI";
-            return `
-              <div class="msg ${m.role}">
-                <div class="msg-role">${roleLabel}</div>
-                <div class="msg-content">${escapeHtml(m.content)}</div>
-              </div>
-            `.trim();
-          })
-          .join("");
-
-        threadEl.scrollTop = threadEl.scrollHeight;
-      }
 
       async function askQuestion() {
         const question = questionInput.value.trim();
@@ -526,11 +438,8 @@
         statusPill.style.display = "inline-flex";
         statusPill.className = "status-pill pending";
         statusPill.textContent = "Thinking…";
-
-        messages.push({ role: "user", content: question });
-        questionInput.value = "";
-        charCount.textContent = "0 / 500";
-        renderThread();
+        answerEl.classList.remove("placeholder");
+        answerEl.textContent = "Waiting for the AI to respond…";
 
         try {
           const res = await fetch("/api/ask", {
@@ -538,7 +447,7 @@
             headers: {
               "Content-Type": "application/json"
             },
-            body: JSON.stringify({ messages })
+            body: JSON.stringify({ question })
           });
 
           const data = await res.json();
@@ -549,25 +458,20 @@
 
           statusPill.className = "status-pill";
           statusPill.textContent = "Done";
-          messages.push({ role: "assistant", content: data.answer || "No answer returned." });
-          renderThread();
+          answerEl.textContent = data.answer || "No answer returned.";
         } catch (err) {
           console.error(err);
           statusPill.className = "status-pill error";
           statusPill.textContent = "Error";
-          messages.push({
-            role: "assistant",
-            content:
-              "Something went wrong talking to the AI. Check that the deployment is running and your API key is configured."
-          });
-          renderThread();
+          answerEl.classList.remove("placeholder");
+          answerEl.textContent =
+            "Something went wrong talking to the AI. Check that the server is running and your API key is configured.";
           errorEl.textContent = err.message;
           errorEl.style.display = "block";
         } finally {
           askBtn.disabled = false;
           askBtnText.textContent = "Ask the AI";
           askBtnSpinner.style.display = "none";
-          questionInput.focus();
         }
       }
 
@@ -578,9 +482,6 @@
           askQuestion();
         }
       });
-
-      renderThread();
     </script>
   </body>
   </html>
-

@@ -52,7 +52,7 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: "No valid messages provided." });
     }
     const completion = await openai.chat.completions.create({
-      model: "gpt-4.1-mini",
+      model: "gpt-5-mini",
       messages: safeMessages
     });
     const answer =
